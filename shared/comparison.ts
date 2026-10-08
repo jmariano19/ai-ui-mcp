@@ -1,7 +1,7 @@
 import { z } from 'zod';
-const text = z.string().trim().min(1).max(1000);
+export const textSchema = z.string().trim().min(1).max(1000);
 // Bilingual values are optional: plain strings work for assistant-provided data.
-export const localizedTextSchema = z.union([text, z.object({ en: text, es: text })]);
+export const localizedTextSchema = z.union([textSchema, z.object({ en: textSchema, es: textSchema })]);
 const optionSchema = z.object({
   id: z.string().trim().min(1).max(80), name: localizedTextSchema,
   description: localizedTextSchema,
@@ -15,6 +15,7 @@ export const comparisonSchema = z.object({
 }).refine(data => data.options[0].id !== data.options[1].id, { message: 'Option IDs must be distinct', path: ['options'] });
 export type Comparison = z.infer<typeof comparisonSchema>;
 export type Language = Comparison['language'];
+export type LocalizedText = z.infer<typeof localizedTextSchema>;
 export function localize(value: z.infer<typeof localizedTextSchema>, language: Language) {
   return typeof value === 'string' ? value : value[language];
 }

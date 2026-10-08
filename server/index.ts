@@ -49,6 +49,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const port = Number(process.env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer between 1 and 65535');
   const server = await createHttpServer();
-  server.listen(port, '0.0.0.0', () => console.log(`SmartCompare listening on 0.0.0.0:${port}`));
+  server.listen(port, '0.0.0.0', () => console.log(`MCP Components listening on 0.0.0.0:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => server.close(() => process.exit(0)));
 }

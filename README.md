@@ -1,6 +1,11 @@
-# SmartCompare MCP Apps proof of concept
+# MCP Components proof of concept
 
-A small AI-native React component library, starting with **SmartCompare**. Compatible assistants discover `compare_options`, supply two options, and render an interactive comparison. English/Spanish controls, currency formatting, preference selection, and a standalone sample preview are included. No database, login, or API key is needed: the assistant provides the data; this server does not call an AI API.
+A small AI-native React component library with two MCP Apps components:
+
+- **SmartCompare** exposes `compare_options` for interactive two-option decisions.
+- **Plan Comparison** exposes `compare_plans` for three-tier pricing and feature matrices. Its visual implementation is based on the `Plan comparison` frame in the MCP_COMPONENTS Figma file.
+
+Both components support English and Spanish and include text fallbacks for clients that cannot render MCP Apps UI. No database, login, or API key is needed: the assistant provides the data; this server does not call an AI API.
 
 ## Local setup
 
@@ -12,7 +17,7 @@ npm run build
 npm start
 ```
 
-Open <http://localhost:3000/preview> (or `/`) for the standalone browser preview. MCP endpoint: <http://localhost:3000/mcp>. Health: <http://localhost:3000/health>.
+Open <http://localhost:3000/preview> (or `/`) for the Plan Comparison browser preview. Add `?component=smartcompare` to preview SmartCompare. MCP endpoint: <http://localhost:3000/mcp>. Health: <http://localhost:3000/health>.
 
 For UI development, run `npm run dev` and open the Vite URL printed in the terminal. For server development, build once, then run `npm run dev:server`. Rebuild after UI changes to refresh the HTML served by the MCP server. Stop the production server first if using the same port.
 
@@ -25,9 +30,11 @@ PORT=3001 npm start
 ## How it works
 
 - `shared/comparison.ts`: shared Zod input/output schema, sample data, formatting and text fallback.
+- `shared/plan-comparison.ts`: typed three-plan feature-matrix schema, bilingual sample data and text fallback.
 - `src/SmartCompare.tsx`: reusable React component, independent of MCP.
+- `src/PlanComparison.tsx`: reusable React implementation of the Figma plan-comparison frame.
 - `src/main.tsx`: MCP Apps bridge. Registers tool-result handlers before connecting; receives `structuredContent` and sends preference changes via `updateModelContext`.
-- `server/app.ts`: registers `compare_options` and `ui://smartcompare/v1.html` with the official MCP Apps helpers.
+- `server/app.ts`: registers `compare_options`, `compare_plans` and their versioned UI resources with the official MCP Apps helpers.
 - `server/index.ts`: Node HTTP server with stateless Streamable HTTP, JSON responses, preview and health endpoints.
 - `scripts/inline-ui.mjs`: embeds built JS/CSS in a single HTML resource, so the sandbox needs no external assets or network access.
 
@@ -73,7 +80,7 @@ npm test
 
 The tests use the official MCP client against an actual ephemeral HTTP server. They cover health, preview, tool/resource discovery, resource MIME type and self-contained bundle, English/Spanish structured results and fallbacks, custom assistant data, invalid inputs, and disallowed browser origins.
 
-Manual UI check: open `/preview`, toggle EN/ES, select either option, change the preference, and clear it. At widths below 580px the cards stack vertically. To test the full host bridge, connect an MCP Apps-capable assistant and ask it to compare two plans with bilingual descriptions, prices, and features; select one and ask which option you preferred. A browser preview alone does not exercise host model-context delivery.
+Manual UI check: open `/preview` and compare the implementation with the Figma frame. The table scrolls horizontally when the host is narrower than its 1040px design width. Open `/preview?component=smartcompare` to test the original two-option interaction. To test the full host bridge, connect an MCP Apps-capable assistant and ask it to compare three plans with pricing and grouped features in English or Spanish. A browser preview alone does not exercise host model-context delivery.
 
 ## Docker and Easypanel
 

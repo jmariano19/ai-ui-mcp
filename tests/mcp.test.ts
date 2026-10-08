@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { createHttpServer } from '../server/index.js';
-import { RESOURCE_URI } from '../server/app.js';
+import { PLAN_RESOURCE_URI, RESOURCE_URI } from '../server/app.js';
 import { comparisonSchema, sampleComparison } from '../shared/comparison.js';
+import { planComparisonSchema, samplePlanComparison } from '../shared/plan-comparison.js';
 
 test('production HTTP app: health, discovery, calls, resource, validation and isolation', async () => {
   const html = await readFile(new URL('../dist/ui/index.html', import.meta.url), 'utf8');
@@ -22,12 +23,17 @@ test('production HTTP app: health, discovery, calls, resource, validation and is
     assert.equal((await fetch(`${base}/mcp`, { method: 'POST', headers: { Origin: 'https://untrusted.example' } })).status, 403);
     await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`)));
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 1);
-    assert.equal(tools[0].name, 'compare_options');
-    assert.deepEqual(tools[0]._meta?.ui, { resourceUri: RESOURCE_URI });
-    assert.equal(tools[0]._meta?.['openai/outputTemplate'], RESOURCE_URI);
+    assert.equal(tools.length, 2);
+    const compareOptions = tools.find(tool => tool.name === 'compare_options');
+    const comparePlans = tools.find(tool => tool.name === 'compare_plans');
+    assert.ok(compareOptions);
+    assert.ok(comparePlans);
+    assert.deepEqual(compareOptions._meta?.ui, { resourceUri: RESOURCE_URI });
+    assert.equal(compareOptions._meta?.['openai/outputTemplate'], RESOURCE_URI);
+    assert.deepEqual(comparePlans._meta?.ui, { resourceUri: PLAN_RESOURCE_URI });
+    assert.equal(comparePlans._meta?.['openai/outputTemplate'], PLAN_RESOURCE_URI);
     const { resources } = await client.listResources();
-    assert.equal(resources[0].uri, RESOURCE_URI);
+    assert.deepEqual(new Set(resources.map(resource => resource.uri)), new Set([RESOURCE_URI, PLAN_RESOURCE_URI]));
     const resource = await client.readResource({ uri: RESOURCE_URI });
     assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
     assert.ok('text' in resource.contents[0]);
@@ -52,6 +58,20 @@ test('production HTTP app: health, discovery, calls, resource, validation and is
     assert.equal(bad.isError, true);
     const wrongCount = await client.callTool({ name: 'compare_options', arguments: { ...sampleComparison, options: [sampleComparison.options[0]] } });
     assert.equal(wrongCount.isError, true);
+    for (const language of ['en', 'es'] as const) {
+      const input = { ...samplePlanComparison, language };
+      const result = await client.callTool({ name: 'compare_plans', arguments: input });
+      assert.deepEqual(result.structuredContent, input);
+      assert.equal(result.isError, undefined);
+      const text = result.content[0];
+      assert.ok(text.type === 'text');
+      assert.match(text.text, language === 'es' ? /Miembros del equipo/ : /Team members/);
+      assert.match(text.text, language === 'es' ? /Incluido/ : /Included/);
+    }
+    const planResource = await client.readResource({ uri: PLAN_RESOURCE_URI });
+    assert.equal(planResource.contents[0].mimeType, 'text/html;profile=mcp-app');
+    assert.ok('text' in planResource.contents[0]);
+    assert.equal(planResource.contents[0].text, html);
   } finally {
     await client.close();
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
@@ -60,4 +80,10 @@ test('production HTTP app: health, discovery, calls, resource, validation and is
 test('schema rejects negative prices and invalid currencies', () => {
   assert.equal(comparisonSchema.safeParse({ ...sampleComparison, options: [{ ...sampleComparison.options[0], price: { amount: -1, currency: 'USD' } }, sampleComparison.options[1]] }).success, false);
   assert.equal(comparisonSchema.safeParse({ ...sampleComparison, options: [{ ...sampleComparison.options[0], price: { amount: 5, currency: 'usd' } }, sampleComparison.options[1]] }).success, false);
+});
+test('plan schema validates three distinct plans and a valid recommendation', () => {
+  assert.equal(planComparisonSchema.safeParse(samplePlanComparison).success, true);
+  assert.equal(planComparisonSchema.safeParse({ ...samplePlanComparison, recommendedPlanId: 'missing' }).success, false);
+  assert.equal(planComparisonSchema.safeParse({ ...samplePlanComparison, plans: [samplePlanComparison.plans[0], samplePlanComparison.plans[0], samplePlanComparison.plans[2]] }).success, false);
+  assert.equal(planComparisonSchema.safeParse({ ...samplePlanComparison, plans: samplePlanComparison.plans.slice(0, 2) }).success, false);
 });
